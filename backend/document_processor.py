@@ -251,6 +251,7 @@ class DocumentProcessor:
                     course_chunk = CourseChunk(
                         content=chunk,
                         course_title=course.title,
+                        lesson_number=None,  # Explicitly set None for chunks without lesson
                         chunk_index=chunk_counter
                     )
                     course_chunks.append(course_chunk)

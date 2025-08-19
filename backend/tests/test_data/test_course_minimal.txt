@@ -1,0 +1,5 @@
+Course Title: Minimal Test Course
+Course Instructor: Test Instructor
+
+Lesson 0: Single Lesson
+This is a minimal course with just one lesson for basic testing scenarios.

@@ -108,8 +108,13 @@ class VectorStore:
             )
             
             if results['documents'][0] and results['metadatas'][0]:
-                # Return the title (which is now the ID)
-                return results['metadatas'][0][0]['title']
+                # Check if the match is close enough (distance threshold)
+                # Lower distance means better match - adjusted threshold for partial matches
+                # Threshold of 1.55 allows for partial course name matches like "MCP" for "MCP: Build..."
+                # Vector embeddings don't always provide clear separation between related and unrelated terms
+                if results['distances'][0] and results['distances'][0][0] < 1.55:
+                    # Return the title (which is now the ID)
+                    return results['metadatas'][0][0]['title']
         except Exception as e:
             print(f"Error resolving course name: {e}")
         
@@ -141,21 +146,31 @@ class VectorStore:
         # Build lessons metadata and serialize as JSON string
         lessons_metadata = []
         for lesson in course.lessons:
-            lessons_metadata.append({
+            lesson_meta = {
                 "lesson_number": lesson.lesson_number,
-                "lesson_title": lesson.title,
-                "lesson_link": lesson.lesson_link
-            })
+                "lesson_title": lesson.title
+            }
+            # Only add lesson_link if it's not None
+            if lesson.lesson_link is not None:
+                lesson_meta["lesson_link"] = lesson.lesson_link
+            lessons_metadata.append(lesson_meta)
+        
+        # Build metadata without None values - ChromaDB doesn't accept None
+        metadata = {
+            "title": course.title,
+            "lessons_json": json.dumps(lessons_metadata),  # Serialize as JSON string
+            "lesson_count": len(course.lessons)
+        }
+        
+        # Only add optional fields if they're not None
+        if course.instructor is not None:
+            metadata["instructor"] = course.instructor
+        if course.course_link is not None:
+            metadata["course_link"] = course.course_link
         
         self.course_catalog.add(
             documents=[course_text],
-            metadatas=[{
-                "title": course.title,
-                "instructor": course.instructor,
-                "course_link": course.course_link,
-                "lessons_json": json.dumps(lessons_metadata),  # Serialize as JSON string
-                "lesson_count": len(course.lessons)
-            }],
+            metadatas=[metadata],
             ids=[course.title]
         )
     
@@ -165,11 +180,18 @@ class VectorStore:
             return
         
         documents = [chunk.content for chunk in chunks]
-        metadatas = [{
-            "course_title": chunk.course_title,
-            "lesson_number": chunk.lesson_number,
-            "chunk_index": chunk.chunk_index
-        } for chunk in chunks]
+        # Build metadata without None values - ChromaDB doesn't accept None
+        metadatas = []
+        for chunk in chunks:
+            metadata = {
+                "course_title": chunk.course_title,
+                "chunk_index": chunk.chunk_index
+            }
+            # Only add lesson_number if it's not None
+            if chunk.lesson_number is not None:
+                metadata["lesson_number"] = chunk.lesson_number
+            metadatas.append(metadata)
+        
         # Use title with chunk index for unique IDs
         ids = [f"{chunk.course_title.replace(' ', '_')}_{chunk.chunk_index}" for chunk in chunks]
         

@@ -31,6 +31,10 @@ Provide only the direct answer to what was asked.
 """
     
     def __init__(self, api_key: str, model: str):
+        # Validate API key is provided
+        if not api_key or api_key.strip() == "":
+            raise ValueError("Anthropic API key is required but not provided. Please set ANTHROPIC_API_KEY in your .env file.")
+        
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
         

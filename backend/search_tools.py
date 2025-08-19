@@ -61,29 +61,35 @@ class CourseSearchTool(Tool):
         Returns:
             Formatted search results or error message
         """
+        try:
+            # Use the vector store's unified search interface
+            results = self.store.search(
+                query=query,
+                course_name=course_name,
+                lesson_number=lesson_number
+            )
+            
+            # Handle errors
+            if results.error:
+                return results.error
+            
+            # Handle empty results
+            if results.is_empty():
+                filter_info = ""
+                if course_name:
+                    filter_info += f" in course '{course_name}'"
+                if lesson_number:
+                    filter_info += f" in lesson {lesson_number}"
+                # Clear sources for empty results
+                self.last_sources = []
+                return f"No relevant content found{filter_info}."
+            
+            # Format and return results
+            return self._format_results(results)
         
-        # Use the vector store's unified search interface
-        results = self.store.search(
-            query=query,
-            course_name=course_name,
-            lesson_number=lesson_number
-        )
-        
-        # Handle errors
-        if results.error:
-            return results.error
-        
-        # Handle empty results
-        if results.is_empty():
-            filter_info = ""
-            if course_name:
-                filter_info += f" in course '{course_name}'"
-            if lesson_number:
-                filter_info += f" in lesson {lesson_number}"
-            return f"No relevant content found{filter_info}."
-        
-        # Format and return results
-        return self._format_results(results)
+        except Exception as e:
+            # Catch any unexpected errors and return a user-friendly message
+            return f"Search failed: {str(e)}"
     
     def _format_results(self, results: SearchResults) -> str:
         """Format search results with course and lesson context"""

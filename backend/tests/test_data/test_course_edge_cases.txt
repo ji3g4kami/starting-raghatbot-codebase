@@ -1,0 +1,22 @@
+Course Title: Edge Cases & Special Characters: Testing @#$%^&*()
+Course Link: https://example.com/edge-cases-course?param=value&other=123
+Course Instructor: Dr. Edge-Case Tester, Ph.D.
+
+Lesson 0: Introduction: Testing "Edge Cases"
+This lesson covers edge cases with special characters: !@#$%^&*()_+-={}[]|\\:";'<>?,./ 
+
+It also includes unicode characters: 🔧 🧪 ⚙️ and accented letters: café, naïve, résumé.
+
+Numbers and dates: 123,456.789 and 2024-01-15T10:30:00Z
+
+Lesson 1: Empty Content Handling
+
+This lesson tests how the system handles minimal content.
+
+Lesson 2: Very Long Lesson Title That Exceeds Normal Length Expectations And Contains Multiple Concepts Like Performance Testing Integration Testing Unit Testing And More
+Content for testing very long titles and how they are processed by the chunking algorithm. This content should be split into multiple chunks based on the configured chunk size parameters.
+
+The content continues with more text to ensure we exceed the typical chunk size limits and test the overlap functionality between chunks. This helps verify that important context is preserved when documents are split for vector storage.
+
+Lesson 3: Lesson with Missing Link
+This lesson doesn't have a lesson link to test handling of optional fields.

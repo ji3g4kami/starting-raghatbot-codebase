@@ -1,0 +1,13 @@
+This is a malformed course document that doesn't follow the expected format.
+
+There's no proper course title header.
+No course instructor.
+No proper lesson structure.
+
+Just random content that should cause parsing errors or be handled gracefully by the document processor.
+
+Some content that looks like it might be a lesson:
+Lesson 99: Random Lesson
+But it's not properly structured.
+
+Course Title should be at the top but it's here: Invalid Course Title Placement

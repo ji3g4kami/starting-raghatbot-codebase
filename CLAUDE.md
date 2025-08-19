@@ -19,6 +19,24 @@ cd backend
 uv run uvicorn app:app --reload --port 8000
 ```
 
+### Managing Background Server Processes
+```bash
+# Check if server is running on port 8000
+lsof -i :8000
+
+# Kill server running on port 8000
+pkill -f "uvicorn app:app"
+
+# Alternative: Kill by port number
+lsof -i :8000 | grep LISTEN | awk '{print $2}' | xargs kill -9
+
+# Check for any Python processes running uvicorn
+ps aux | grep uvicorn
+
+# Kill all uvicorn processes
+pkill -f uvicorn
+```
+
 ### Package Management
 ```bash
 # Install dependencies (uses uv package manager)
@@ -26,6 +44,28 @@ uv sync
 
 # Add new dependency
 uv add <package_name>
+```
+
+### Running Tests
+```bash
+# Run all tests from backend directory
+cd backend
+uv run pytest tests/ -v
+
+# Run specific test file
+uv run pytest tests/test_vector_store.py -v
+
+# Run tests with short traceback for cleaner output
+uv run pytest tests/ -v --tb=short
+
+# Run specific test by name pattern
+uv run pytest tests/ -k "test_search" -v
+
+# Run tests quietly (only show summary)
+uv run pytest tests/ -q
+
+# Run tests with coverage report
+uv run pytest tests/ --cov=. --cov-report=term-missing
 ```
 
 ### Environment Setup
@@ -134,9 +174,17 @@ When modifying this system:
 4. **Frontend changes**: Remember to handle loading states and error cases
 5. **New API endpoints**: Add to `app.py` with Pydantic models for validation
 
+## Testing
+
+The project includes a comprehensive test suite with 87+ tests covering:
+- **Unit tests**: Individual component testing (search tools, AI generator, vector store)
+- **Integration tests**: End-to-end RAG system testing
+- **Edge case testing**: Malformed documents, missing fields, error handling
+
+Test files are located in `/backend/tests/` with fixtures in `conftest.py`.
+
 ## Current Limitations
 
-- No test suite exists
 - No linting/formatting configuration
 - Single-node deployment only (no distributed ChromaDB)
 - Manual document upload required (no admin interface)
