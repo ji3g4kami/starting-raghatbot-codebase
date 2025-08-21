@@ -226,7 +226,8 @@ class TestAIGenerator:
         system_prompt = generator.SYSTEM_PROMPT
         assert "search_course_content tool" in system_prompt
         assert "get_course_outline tool" in system_prompt
-        assert "One tool call per query maximum" in system_prompt
+        assert "Sequential tool usage" in system_prompt
+        assert "up to 2 sequential tool calls" in system_prompt
         assert "Brief, Concise and focused" in system_prompt
     
     def test_base_params_configuration(self, test_config):
@@ -318,3 +319,249 @@ class TestAIGenerator:
             # If not tool_use, should return direct response without tool execution
             assert response == "Response text"
             tool_manager.execute_tool.assert_not_called()
+    
+    def test_sequential_tool_calling_two_rounds(self, test_config):
+        """Test successful two-round sequential tool calling"""
+        # Setup mock client
+        mock_client = Mock()
+        
+        # First response: tool use for get_course_outline
+        mock_response1 = Mock()
+        mock_response1.stop_reason = "tool_use"
+        mock_content1 = Mock()
+        mock_content1.type = "tool_use"
+        mock_content1.name = "get_course_outline"
+        mock_content1.input = {"course_name": "Testing Course"}
+        mock_content1.id = "tool_001"
+        mock_response1.content = [mock_content1]
+        
+        # Second response: tool use for search_course_content
+        mock_response2 = Mock()
+        mock_response2.stop_reason = "tool_use"
+        mock_content2 = Mock()
+        mock_content2.type = "tool_use"
+        mock_content2.name = "search_course_content"
+        mock_content2.input = {"query": "unit testing concepts"}
+        mock_content2.id = "tool_002"
+        mock_response2.content = [mock_content2]
+        
+        # Final response: no more tool use
+        mock_final_response = Mock()
+        mock_final_response.stop_reason = "end_turn"
+        mock_final_response.content = [Mock(text="Based on the course outline and search results...")]
+        
+        # Configure mock to return responses in sequence
+        mock_client.messages.create.side_effect = [
+            mock_response1,
+            mock_response2,
+            mock_final_response
+        ]
+        
+        with patch('anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(test_config.ANTHROPIC_API_KEY, test_config.ANTHROPIC_MODEL)
+        
+        # Setup tool manager
+        tool_manager = Mock()
+        tool_manager.execute_tool.side_effect = [
+            "Course outline: Lesson 1: Introduction, Lesson 2: Unit Testing...",
+            "Search results: Unit testing is a method of testing individual components..."
+        ]
+        tools = [
+            {"name": "get_course_outline", "description": "Get course outline"},
+            {"name": "search_course_content", "description": "Search course content"}
+        ]
+        
+        # Execute
+        response = generator.generate_response(
+            "What testing concepts are covered in the Testing Course?",
+            tools=tools,
+            tool_manager=tool_manager
+        )
+        
+        # Assert
+        assert response == "Based on the course outline and search results..."
+        assert mock_client.messages.create.call_count == 3  # 2 tool rounds + 1 final
+        assert tool_manager.execute_tool.call_count == 2
+        tool_manager.execute_tool.assert_any_call("get_course_outline", course_name="Testing Course")
+        tool_manager.execute_tool.assert_any_call("search_course_content", query="unit testing concepts")
+    
+    def test_sequential_tool_calling_early_termination(self, test_config):
+        """Test that tool calling stops when no more tools are needed"""
+        # Setup mock client
+        mock_client = Mock()
+        
+        # First response: tool use
+        mock_response1 = Mock()
+        mock_response1.stop_reason = "tool_use"
+        mock_content1 = Mock()
+        mock_content1.type = "tool_use"
+        mock_content1.name = "search_course_content"
+        mock_content1.input = {"query": "python basics"}
+        mock_content1.id = "tool_001"
+        mock_response1.content = [mock_content1]
+        
+        # Second response: no more tool use (early termination)
+        mock_response2 = Mock()
+        mock_response2.stop_reason = "end_turn"
+        mock_response2.content = [Mock(text="Python basics include variables, functions, and classes.")]
+        
+        mock_client.messages.create.side_effect = [mock_response1, mock_response2]
+        
+        with patch('anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(test_config.ANTHROPIC_API_KEY, test_config.ANTHROPIC_MODEL)
+        
+        # Setup tool manager
+        tool_manager = Mock()
+        tool_manager.execute_tool.return_value = "Search results: Python basics cover..."
+        tools = [{"name": "search_course_content"}]
+        
+        # Execute
+        response = generator.generate_response(
+            "What are Python basics?",
+            tools=tools,
+            tool_manager=tool_manager
+        )
+        
+        # Assert
+        assert response == "Python basics include variables, functions, and classes."
+        assert mock_client.messages.create.call_count == 2  # Only 2 calls, not 3
+        assert tool_manager.execute_tool.call_count == 1
+    
+    def test_max_rounds_reached_forced_final_response(self, test_config):
+        """Test behavior when max rounds reached but Claude still wants tools"""
+        # Setup mock client
+        mock_client = Mock()
+        
+        # Both rounds use tools
+        mock_response1 = Mock()
+        mock_response1.stop_reason = "tool_use"
+        mock_content1 = Mock()
+        mock_content1.type = "tool_use"
+        mock_content1.name = "get_course_outline"
+        mock_content1.input = {"course_name": "Course A"}
+        mock_content1.id = "tool_001"
+        mock_response1.content = [mock_content1]
+        
+        mock_response2 = Mock()
+        mock_response2.stop_reason = "tool_use"
+        mock_content2 = Mock()
+        mock_content2.type = "tool_use"
+        mock_content2.name = "get_course_outline"
+        mock_content2.input = {"course_name": "Course B"}
+        mock_content2.id = "tool_002"
+        mock_response2.content = [mock_content2]
+        
+        # Final response after max rounds
+        mock_final = Mock()
+        mock_final.stop_reason = "end_turn"
+        mock_final.content = [Mock(text="Here's the comparison of both courses...")]
+        
+        mock_client.messages.create.side_effect = [
+            mock_response1,
+            mock_response2,
+            mock_final
+        ]
+        
+        with patch('anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(test_config.ANTHROPIC_API_KEY, test_config.ANTHROPIC_MODEL)
+        
+        # Setup tool manager
+        tool_manager = Mock()
+        tool_manager.execute_tool.side_effect = [
+            "Course A outline: Lesson 1, Lesson 2...",
+            "Course B outline: Lesson 1, Lesson 2..."
+        ]
+        tools = [{"name": "get_course_outline"}]
+        
+        # Execute with max_tool_rounds=2
+        response = generator.generate_response(
+            "Compare Course A and Course B",
+            tools=tools,
+            tool_manager=tool_manager,
+            max_tool_rounds=2
+        )
+        
+        # Assert
+        assert response == "Here's the comparison of both courses..."
+        assert mock_client.messages.create.call_count == 3
+        assert tool_manager.execute_tool.call_count == 2
+    
+    def test_tool_execution_error_handling(self, test_config):
+        """Test handling of tool execution errors during sequential calling"""
+        # Setup mock client
+        mock_client = Mock()
+        
+        # First response: tool use
+        mock_response1 = Mock()
+        mock_response1.stop_reason = "tool_use"
+        mock_content1 = Mock()
+        mock_content1.type = "tool_use"
+        mock_content1.name = "search_course_content"
+        mock_content1.input = {"query": "test"}
+        mock_content1.id = "tool_001"
+        mock_response1.content = [mock_content1]
+        
+        mock_client.messages.create.return_value = mock_response1
+        
+        with patch('anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(test_config.ANTHROPIC_API_KEY, test_config.ANTHROPIC_MODEL)
+        
+        # Setup tool manager that raises an error
+        tool_manager = Mock()
+        tool_manager.execute_tool.side_effect = Exception("Database connection failed")
+        tools = [{"name": "search_course_content"}]
+        
+        # Execute
+        response = generator.generate_response(
+            "Search for testing content",
+            tools=tools,
+            tool_manager=tool_manager
+        )
+        
+        # Assert
+        assert "I encountered an error while searching" in response
+        assert "Database connection failed" in response
+        assert mock_client.messages.create.call_count == 1
+    
+    def test_backward_compatibility_single_round(self, test_config):
+        """Test that existing single-round behavior still works with max_tool_rounds=1"""
+        # Setup mock client
+        mock_client = Mock()
+        
+        # First response: tool use
+        mock_response1 = Mock()
+        mock_response1.stop_reason = "tool_use"
+        mock_content1 = Mock()
+        mock_content1.type = "tool_use"
+        mock_content1.name = "search_course_content"
+        mock_content1.input = {"query": "python"}
+        mock_content1.id = "tool_001"
+        mock_response1.content = [mock_content1]
+        
+        # Final response
+        mock_final = Mock()
+        mock_final.stop_reason = "end_turn"
+        mock_final.content = [Mock(text="Python is a programming language...")]
+        
+        mock_client.messages.create.side_effect = [mock_response1, mock_final]
+        
+        with patch('anthropic.Anthropic', return_value=mock_client):
+            generator = AIGenerator(test_config.ANTHROPIC_API_KEY, test_config.ANTHROPIC_MODEL)
+        
+        # Setup tool manager
+        tool_manager = Mock()
+        tool_manager.execute_tool.return_value = "Search results: Python is..."
+        tools = [{"name": "search_course_content"}]
+        
+        # Execute with max_tool_rounds=1 for backward compatibility
+        response = generator.generate_response(
+            "What is Python?",
+            tools=tools,
+            tool_manager=tool_manager,
+            max_tool_rounds=1
+        )
+        
+        # Assert
+        assert response == "Python is a programming language..."
+        assert mock_client.messages.create.call_count == 2  # 1 tool round + 1 final
+        assert tool_manager.execute_tool.call_count == 1
