@@ -29,3 +29,14 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test databases and temporary files
+backend/temp_test/
+backend/temp_test2/
+backend/test_db/
+backend/test_db_check/
+
+# Local configuration
+CLAUDE.local.md
+.claude/
+.playwright-mcp/
