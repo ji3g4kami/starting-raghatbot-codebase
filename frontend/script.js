@@ -17,6 +17,9 @@ document.addEventListener('DOMContentLoaded', () => {
     courseTitles = document.getElementById('courseTitles');
     newChatButton = document.getElementById('newChatButton');
     
+    // Initialize theme
+    initializeTheme();
+    
     setupEventListeners();
     createNewSession();
     loadCourseStats();
@@ -33,6 +36,20 @@ function setupEventListeners() {
     // New Chat button
     if (newChatButton) {
         newChatButton.addEventListener('click', startNewChat);
+    }
+    
+    // Theme toggle button
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+        
+        // Keyboard accessibility for theme toggle
+        themeToggle.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleTheme();
+            }
+        });
     }
     
     // Suggested questions
@@ -224,5 +241,35 @@ async function loadCourseStats() {
         if (courseTitles) {
             courseTitles.innerHTML = '<span class="error">Failed to load courses</span>';
         }
+    }
+}
+
+// Theme Management Functions
+function initializeTheme() {
+    // Check for saved theme preference or default to dark mode
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeToggleAria(savedTheme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    
+    // Update theme attribute with smooth transition
+    document.documentElement.setAttribute('data-theme', newTheme);
+    
+    // Save preference to localStorage
+    localStorage.setItem('theme', newTheme);
+    
+    // Update aria-label for accessibility
+    updateThemeToggleAria(newTheme);
+}
+
+function updateThemeToggleAria(theme) {
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        const label = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+        themeToggle.setAttribute('aria-label', label);
     }
 }
