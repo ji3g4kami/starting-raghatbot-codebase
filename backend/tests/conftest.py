@@ -2,7 +2,9 @@ import os
 import shutil
 import sys
 import tempfile
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock, patch
+from typing import List, Dict, Any, Union, Optional
+from fastapi.testclient import TestClient
 
 import pytest
 
@@ -13,7 +15,9 @@ from config import Config
 from models import Course, CourseChunk, Lesson
 from search_tools import CourseSearchTool
 from vector_store import SearchResults, VectorStore
-
+from session_manager import SessionManager
+from rag_system import RAGSystem
+from ai_generator import AIGenerator
 
 @pytest.fixture
 def sample_course():
@@ -183,5 +187,203 @@ This lesson covers different types of test doubles: mocks, stubs, spies, and fak
 def anthropic_api_error():
     """Create mock Anthropic API error for testing error handling"""
     import anthropic
-
     return anthropic.APIError("Test API error", response=Mock(status_code=500), body={})
+
+# API Testing Fixtures
+
+@pytest.fixture
+def mock_session_manager():
+    """Create a mock SessionManager for API testing"""
+    mock_sm = Mock(spec=SessionManager)
+    mock_sm.create_session.return_value = "test-session-123"
+    mock_sm.get_conversation_history.return_value = []
+    mock_sm.add_exchange.return_value = None
+    return mock_sm
+
+@pytest.fixture
+def mock_rag_system_complete():
+    """Create a complete mock RAG system with all components"""
+    mock_rag = Mock(spec=RAGSystem)
+    
+    # Mock session manager
+    mock_rag.session_manager = Mock()
+    mock_rag.session_manager.create_session.return_value = "test-session-123"
+    mock_rag.session_manager.get_conversation_history.return_value = []
+    
+    # Mock vector store
+    mock_rag.vector_store = Mock(spec=VectorStore)
+    mock_rag.vector_store.search.return_value = SearchResults(
+        documents=["Test content about testing"],
+        metadata=[{"course_title": "Test Course", "lesson_number": 1}],
+        distances=[0.1]
+    )
+    
+    # Mock AI generator
+    mock_rag.ai_generator = Mock(spec=AIGenerator)
+    mock_rag.ai_generator.generate.return_value = (
+        "This is a test response about testing.",
+        [{"content": "Source content", "course": "Test Course", "lesson": "1"}]
+    )
+    
+    # Mock query method
+    mock_rag.query.return_value = (
+        "This is a test answer based on the course materials.",
+        [
+            {"content": "Source content 1", "course": "Test Course", "lesson": "1"},
+            {"content": "Source content 2", "course": "Test Course", "lesson": "2"}
+        ]
+    )
+    
+    # Mock get_course_analytics
+    mock_rag.get_course_analytics.return_value = {
+        "total_courses": 3,
+        "course_titles": ["Course 1", "Course 2", "Course 3"]
+    }
+    
+    return mock_rag
+
+@pytest.fixture
+def test_api_client(mock_rag_system_complete):
+    """Create a test client with mocked RAG system for API testing"""
+    from fastapi import FastAPI, HTTPException
+    from typing import Optional
+    from pydantic import BaseModel
+    
+    class QueryRequest(BaseModel):
+        query: str
+        session_id: Optional[str] = None
+    
+    class QueryResponse(BaseModel):
+        answer: str
+        sources: List[Union[str, Dict[str, Optional[str]]]]
+        session_id: str
+    
+    class CourseStats(BaseModel):
+        total_courses: int
+        course_titles: List[str]
+    
+    app = FastAPI(title="Test RAG API")
+    
+    @app.post("/api/query", response_model=QueryResponse)
+    async def query_documents(request: QueryRequest):
+        try:
+            session_id = request.session_id
+            if not session_id:
+                session_id = mock_rag_system_complete.session_manager.create_session()
+            
+            answer, sources = mock_rag_system_complete.query(request.query, session_id)
+            
+            return QueryResponse(
+                answer=answer,
+                sources=sources,
+                session_id=session_id
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.get("/api/courses", response_model=CourseStats)
+    async def get_course_stats():
+        try:
+            analytics = mock_rag_system_complete.get_course_analytics()
+            return CourseStats(
+                total_courses=analytics["total_courses"],
+                course_titles=analytics["course_titles"]
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    @app.get("/")
+    async def root():
+        return {"message": "Course Materials RAG System API", "version": "1.0.0"}
+    
+    return TestClient(app)
+
+@pytest.fixture
+def test_documents_folder(tmp_path):
+    """Create a temporary documents folder with test files"""
+    docs_dir = tmp_path / "test_docs"
+    docs_dir.mkdir()
+    
+    # Create test course file
+    test_file = docs_dir / "test_course.txt"
+    test_file.write_text("""Course Title: Test Course for Fixtures
+Course Link: https://example.com/test-course
+Course Instructor: Test Instructor
+
+Lesson 0: Introduction
+This is the introduction content.
+
+Lesson 1: Basic Concepts
+This is the basic concepts content.
+""")
+    
+    return str(docs_dir)
+
+@pytest.fixture
+def mock_chromadb_client():
+    """Create a mock ChromaDB client"""
+    import chromadb
+    mock_client = Mock()
+    
+    # Mock collection
+    mock_collection = Mock()
+    mock_collection.add.return_value = None
+    mock_collection.query.return_value = {
+        'documents': [["Test content"]],
+        'metadatas': [[{"course_title": "Test Course", "lesson_number": 1}]],
+        'distances': [[0.1]]
+    }
+    mock_collection.get.return_value = {
+        'documents': ["Test content"],
+        'metadatas': [{"course_title": "Test Course"}],
+        'ids': ["test-id-1"]
+    }
+    mock_collection.count.return_value = 1
+    
+    mock_client.get_or_create_collection.return_value = mock_collection
+    mock_client.create_collection.return_value = mock_collection
+    mock_client.get_collection.return_value = mock_collection
+    
+    return mock_client
+
+@pytest.fixture(autouse=True)
+def cleanup_chromadb():
+    """Automatically cleanup ChromaDB after each test"""
+    yield
+    # Cleanup any test ChromaDB instances
+    test_db_path = "./test_chroma_db"
+    if os.path.exists(test_db_path):
+        shutil.rmtree(test_db_path, ignore_errors=True)
+
+@pytest.fixture
+def mock_tool_result():
+    """Create a mock tool result for AI generator testing"""
+    return {
+        "results": ["Test search result 1", "Test search result 2"],
+        "metadata": [
+            {"course_title": "Test Course", "lesson_number": "1"},
+            {"course_title": "Test Course", "lesson_number": "2"}
+        ]
+    }
+
+@pytest.fixture
+def integration_test_config():
+    """Create configuration for integration tests"""
+    config = Config()
+    config.ANTHROPIC_API_KEY = "test_api_key"
+    config.ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+    config.CHROMA_PATH = "./test_integration_chroma_db"
+    config.MAX_RESULTS = 5
+    config.CHUNK_SIZE = 800
+    config.CHUNK_OVERLAP = 100
+    return config
+
+@pytest.fixture
+def mock_fastapi_dependencies():
+    """Mock all FastAPI app dependencies for testing"""
+    mocks = {
+        'static_files': Mock(),
+        'cors_middleware': Mock(),
+        'trusted_host_middleware': Mock()
+    }
+    return mocks
