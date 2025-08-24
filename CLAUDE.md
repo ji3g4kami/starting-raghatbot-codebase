@@ -68,6 +68,23 @@ uv run pytest tests/ -q
 uv run pytest tests/ --cov=. --cov-report=term-missing
 ```
 
+### Code Quality
+```bash
+# Run all quality checks (formatting, linting, type checking, tests)
+cd backend
+./check_quality.sh
+
+# Format all Python code automatically
+cd backend
+./format_code.sh
+
+# Individual tools (if needed)
+black .                    # Format code
+ruff check --fix .        # Lint and auto-fix
+mypy .                     # Type checking
+uv run pytest tests/ -q   # Run tests
+```
+
 ### Environment Setup
 1. Ensure Python 3.13+ is installed
 2. Install uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`

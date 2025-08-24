@@ -12,7 +12,14 @@
       "Bash(PYTHONPATH=./backend uv run pytest backend/tests/ -v --tb=short)",
       "Bash(PYTHONPATH=backend uv run pytest backend/tests/ -v --tb=short)",
       "Bash(uv run:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(uv add:*)",
+      "Bash(chmod:*)",
+      "Bash(./format_code.sh:*)",
+      "Bash(uv tool install:*)",
+      "Bash(black:*)",
+      "Bash(ruff check:*)",
+      "Bash(./check_quality.sh)"
     ],
     "deny": [],
     "ask": []
