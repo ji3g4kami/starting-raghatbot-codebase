@@ -19,7 +19,10 @@
       "Bash(uv tool install:*)",
       "Bash(black:*)",
       "Bash(ruff check:*)",
-      "Bash(./check_quality.sh)"
+      "Bash(./check_quality.sh)",
+      "Bash(git worktree:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": []
