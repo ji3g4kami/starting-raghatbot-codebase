@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_take_screenshot",
+      "Bash(mkdir:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(PYTHONPATH=./backend uv run pytest backend/tests/ -v --tb=short)",
+      "Bash(PYTHONPATH=backend uv run pytest backend/tests/ -v --tb=short)",
+      "Bash(uv run:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

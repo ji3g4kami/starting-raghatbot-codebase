@@ -38,5 +38,4 @@ backend/test_db_check/
 
 # Local configuration
 CLAUDE.local.md
-.claude/
 .playwright-mcp/
